@@ -198,7 +198,7 @@ def _audio_clip(parent, ids: _Ids, name: str, path: Path, relpath: str,
     _val(fileref, "OriginalFileSize", path.stat().st_size if path.exists() else 0)
     _val(fileref, "OriginalCrc", 0)
     _val(sample, "LastModDate", 0)
-    sd = _el(sample, "SourceContext")
+    _el(sample, "SourceContext")
     _val(sample, "SampleUsageHint", 0)
     _val(sample, "DefaultDuration", int(duration * sample_rate))
     _val(sample, "DefaultSampleRate", sample_rate)
@@ -267,7 +267,7 @@ def _audio_track(tracks, ids: _Ids, stem: Stem, grid: BeatGrid, project_dir: Pat
     _routing(chain, "AudioOutputRouting", "AudioOut/Main", "Main", "")
     _routing(chain, "MidiOutputRouting", "MidiOut/None", "None", "")
     _mixer(chain, ids)
-    devices = _el(chain, "Devices")
+    _el(chain, "Devices")  # Live expects the node, empty is fine
 
     seq = _el(chain, "MainSequencer")
     _val(seq, "LomId", 0)

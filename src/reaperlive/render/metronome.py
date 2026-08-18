@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 import struct
 from pathlib import Path
-from typing import Iterable, Sequence
-
 import numpy as np
 import soundfile as sf
 

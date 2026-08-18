@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Optional, Protocol
 
 #: Track colours by stem name, reused by both DAW writers.
 STEM_COLORS = {
@@ -27,8 +28,15 @@ STEM_ORDER = ["vocals", "drums", "bass", "guitar", "piano", "other",
 class Separator(Protocol):
     name: str
 
-    def separate(self, mix: Path, outdir: Path) -> dict[str, Path]:
-        """Split ``mix`` and return {stem name: wav path}."""
+    def separate(self, mix: Path, outdir: Path,
+                 cancel: Optional[threading.Event] = None,
+                 on_percent: Optional[Callable[[int], None]] = None
+                 ) -> dict[str, Path]:
+        """Split ``mix`` and return {stem name: wav path}.
+
+        ``on_percent`` is called with 0-100 while the work is under way, so a
+        UI can show movement during a separation that runs for minutes.
+        """
 
 
 def sort_stems(stems: dict[str, Path]) -> list[tuple[str, Path]]:

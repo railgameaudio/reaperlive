@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import logging
+import re
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
+from typing import Callable, Optional
 
 from reaperlive.config import SeparationOptions
 
@@ -36,13 +39,17 @@ class DemucsSeparator:
         return "cpu"
 
     def available(self) -> bool:
-        try:
-            import demucs  # noqa: F401
-        except ImportError:
-            return False
-        return True
+        import importlib.util
 
-    def separate(self, mix: Path, outdir: Path) -> dict[str, Path]:
+        return importlib.util.find_spec("demucs") is not None
+
+    def separate(self, mix: Path, outdir: Path,
+                 cancel: Optional[threading.Event] = None,
+                 on_percent: Optional[Callable[[int], None]] = None
+                 ) -> dict[str, Path]:
+        from reaperlive.progress import Cancelled, check
+
+        check(cancel)
         if not self.available():
             raise RuntimeError(
                 "Demucs is not installed. Run:  pip install 'reaperlive[demucs]'\n"
@@ -66,9 +73,10 @@ class DemucsSeparator:
 
         log.info("Separating with Demucs %s on %s (this is the slow part)",
                  self.options.model, device)
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        if proc.returncode != 0:
-            tail = (proc.stderr or proc.stdout or "").strip().splitlines()[-12:]
+        code, tail = _run_streaming(cmd, cancel, on_percent)
+        if code != 0:
+            if cancel is not None and cancel.is_set():
+                raise Cancelled("Separation cancelled.")
             raise RuntimeError("Demucs failed:\n" + "\n".join(tail))
 
         produced = sorted(raw.rglob("*.wav"))
@@ -83,3 +91,51 @@ class DemucsSeparator:
         shutil.rmtree(raw, ignore_errors=True)
         log.info("Stems: %s", ", ".join(sorted(stems)))
         return stems
+
+
+_PERCENT = re.compile(r"(\d{1,3})%")
+
+
+def _run_streaming(cmd: list[str], cancel: Optional[threading.Event],
+                   on_percent: Optional[Callable[[int], None]] = None
+                   ) -> tuple[int, list[str]]:
+    """Run Demucs, relaying its progress as it goes.
+
+    Separation takes minutes, so the output is streamed rather than collected
+    at the end - otherwise the caller has nothing to show for the wait. Demucs
+    redraws its progress bar with carriage returns, so we split on those and
+    only report when the percentage actually moves.
+    """
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, bufsize=1)
+    tail: list[str] = []
+    last_percent = -1
+    try:
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            if cancel is not None and cancel.is_set():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:  # pragma: no cover - rare
+                    proc.kill()
+                return proc.returncode or 1, tail
+            for piece in raw.replace("\r", "\n").splitlines():
+                line = piece.strip()
+                if not line:
+                    continue
+                tail.append(line)
+                del tail[:-40]
+                match = _PERCENT.search(line)
+                if match:
+                    percent = int(match.group(1))
+                    if percent >= last_percent + 5 or percent == 100:
+                        last_percent = percent
+                        log.info("  separating... %d%%", percent)
+                        if on_percent:
+                            on_percent(percent)
+                else:
+                    log.debug("  %s", line)
+    finally:
+        proc.wait()
+    return proc.returncode, tail

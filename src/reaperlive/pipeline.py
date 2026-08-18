@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -13,6 +14,7 @@ from reaperlive.analysis.structure import detect_sections
 from reaperlive.analysis.tempo import build_grid
 from reaperlive.config import BeatGrid, ProjectOptions, Section, Stem
 from reaperlive.ingest.fetch import acquire, probe_duration, slugify
+from reaperlive.progress import Reporter, StageCallback
 from reaperlive.render import metronome
 from reaperlive.separate import color_for, get_separator, sort_stems
 
@@ -35,11 +37,29 @@ class BuildResult:
     def bpm(self) -> float:
         return self.grid.bpm
 
+    @property
+    def reaper_project(self) -> Optional[Path]:
+        return next(iter(sorted(self.project_dir.glob("*.rpp"))), None)
 
-def build(options: ProjectOptions) -> BuildResult:
+    @property
+    def ableton_project(self) -> Optional[Path]:
+        return next(iter(sorted(self.project_dir.glob("*.als"))), None)
+
+
+def build(options: ProjectOptions,
+          cancel: Optional[threading.Event] = None,
+          on_stage: Optional[StageCallback] = None) -> BuildResult:
+    """Run the whole pipeline.
+
+    ``cancel`` lets a caller (the GUI) stop a long separation part-way;
+    ``on_stage`` reports which step is running so it can show progress.
+    """
+    report = Reporter(on_stage, cancel)
+
     if not options.source:
         raise ValueError("No source given.")
 
+    report.stage("Loading audio")
     outdir = Path(options.outdir).expanduser()
     workdir = outdir / "_work"
     source = acquire(options.source, workdir, options.sample_rate, options.name)
@@ -55,20 +75,25 @@ def build(options: ProjectOptions) -> BuildResult:
     duration = probe_duration(mix)
 
     # ---- separation -------------------------------------------------------
+    report.stage("Separating stems")
     separator = get_separator(options.separation)
-    raw_stems = separator.separate(mix, audio_dir) if separator.name != "none" else {}
+    raw_stems = (separator.separate(mix, audio_dir, cancel, report.percent)
+                 if separator.name != "none" else {})
 
     drums = raw_stems.get("drums")
     vocals = raw_stems.get("vocals")
 
     # ---- tempo ------------------------------------------------------------
+    report.stage("Finding the tempo")
     grid = build_grid(mix, options.tempo, percussive_ref=drums)
     project_end = duration + grid.shift
 
     # ---- structure --------------------------------------------------------
+    report.stage("Marking sections")
     sections = detect_sections(vocals, duration, grid, options.structure)
 
     # ---- click ------------------------------------------------------------
+    report.stage("Building the metronome")
     click_rel: Optional[str] = None
     if options.click.audio:
         click_path = metronome.render_click_wav(
@@ -87,6 +112,7 @@ def build(options: ProjectOptions) -> BuildResult:
                           duration=duration, color=color_for("mix")))
 
     # ---- project files ----------------------------------------------------
+    report.stage("Writing the project")
     written: list[Path] = [midi_path]
     target = options.target.lower()
     if target in ("reaper", "both"):

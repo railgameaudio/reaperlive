@@ -4,8 +4,12 @@ Point it at a YouTube link or an audio file, get back a DAW project your band
 can open: **stems separated, tempo mapped, a metronome track, and markers for
 where the singing is**.
 
+It is a standalone tool, not a DAW plugin or script. You launch reaperlive, it
+builds the project, and then it opens REAPER or Live for you.
+
 ```bash
-reaperlive "https://www.youtube.com/watch?v=..." -o ~/band
+reaperlive-gui                                            # the window
+reaperlive "https://www.youtube.com/watch?v=..." -o ~/band # the command line
 reaperlive ~/recordings/rehearsal.wav -t both
 ```
 
@@ -54,14 +58,70 @@ such and get no markers rather than a wrong one.
 
 ## Install
 
+You need **Python 3.9+** and **ffmpeg**. Everything else comes from pip.
+
 ```bash
-pip install -e ".[demucs]"      # separation included
-pip install -e .                # analysis only, --separator none
+git clone https://github.com/railgameaudio/reaperlive
+cd reaperlive
+
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+
+pip install -e ".[demucs]"         # with stem separation
 ```
 
-You also need **ffmpeg** on your PATH (`brew install ffmpeg`,
-`apt install ffmpeg`). Separation is much faster on a GPU; `--device` is
-autodetected but can be forced to `cpu`, `cuda` or `mps`.
+ffmpeg, if you do not already have it:
+
+| | |
+| --- | --- |
+| macOS | `brew install ffmpeg` |
+| Windows | `winget install Gyan.FFmpeg` |
+| Debian/Ubuntu | `sudo apt install ffmpeg` |
+
+That first install pulls in PyTorch, so it downloads a couple of GB and takes a
+few minutes. If you only want the tempo mapping and want to skip separation
+entirely, `pip install -e .` is much smaller — then run with `--separator none`.
+
+Then check it works on something you already have:
+
+```bash
+reaperlive ~/Music/some-song.mp3 -o ~/band
+```
+
+Separation is much faster on a GPU. `--device` is autodetected, and can be
+forced to `cpu`, `cuda` or `mps`.
+
+### The window
+
+```bash
+reaperlive-gui          # or: python -m reaperlive.gui
+```
+
+Paste a link or pick a file, choose REAPER or Live, press **Build project**.
+The log streams as it works, the progress bar tracks the separation, and
+**Cancel** stops it part way. When it finishes, **Open in REAPER** /
+**Open in Ableton** launches the DAW on the project it just built — which is
+the point of the tool being standalone. Your settings are remembered between
+runs.
+
+On Linux the window needs Tk, which is a system package rather than a pip one:
+
+```bash
+sudo apt install python3-tk      # Fedora: sudo dnf install python3-tkinter
+```
+
+macOS and Windows builds from python.org already include it.
+
+### Why not run it inside REAPER?
+
+A ReaScript/ReaImGui version would have to run *inside* REAPER, so REAPER would
+already be open before the tool started — the opposite of launching the DAW when
+the project is ready. It would also do nothing for anyone working in Live. The
+analysis needs PyTorch, which does not live comfortably inside a DAW script host
+either. So the tool stands on its own and hands the finished project to
+whichever DAW you use. If you would rather kick it off from inside REAPER, add
+the `reaperlive` command as a custom action — it is an ordinary command line
+program.
 
 ## Useful flags
 
@@ -78,7 +138,9 @@ autodetected but can be forced to `cpu`, `cuda` or `mps`.
 | `--marker-style regions` | coloured regions instead of ruler markers |
 | `--shifts 5` | better separation, linearly slower |
 
-`reaperlive --help` has the rest.
+`reaperlive --help` has the rest. Every option in the window maps onto one of
+these flags — the window builds an argument list and hands it to the same
+parser, so the two cannot drift apart.
 
 ## If the tempo comes out wrong
 
@@ -131,3 +193,23 @@ pytest
 The tests generate their own audio, so no fixture files are needed and nothing
 touches the network. `reaperlive.render.validate` structurally checks written
 projects and runs automatically after every build.
+
+The window tests drive a real Tk window and skip themselves where there is no
+display. On a headless box:
+
+```bash
+xvfb-run -a pytest
+```
+
+Layout is roughly:
+
+| Module | Does |
+| --- | --- |
+| `ingest/fetch.py` | download and decode |
+| `separate/` | pluggable separation backends |
+| `analysis/tempo.py` | beats, bar lines, tempo map |
+| `analysis/structure.py` | vocal sections |
+| `render/reaper.py`, `render/ableton.py` | project writers |
+| `render/metronome.py` | MIDI and audio click |
+| `render/validate.py` | structural checks on what was written |
+| `gui/` | the standalone window |

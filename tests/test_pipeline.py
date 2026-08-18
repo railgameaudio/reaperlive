@@ -95,3 +95,34 @@ def test_slugify_makes_safe_names():
     assert slugify("Björk - Army of Me (Live!)") == "björk-army-of-me-live"
     assert slugify("///") == "song"
     assert "/" not in slugify("AC/DC - Back in Black")
+
+
+def test_stage_progress_is_reported_in_order(tmp_path):
+    from reaperlive.progress import STAGES
+
+    source = drum_loop(tmp_path / "song.wav", bpm=120.0, bars=8)
+    seen = []
+    build(options(source, tmp_path / "out", name="Stages"), on_stage=seen.append)
+    assert [stage.label for stage in seen] == STAGES
+    assert [stage.index for stage in seen] == list(range(1, len(STAGES) + 1))
+    overall = [stage.overall for stage in seen]
+    assert overall == sorted(overall)
+
+
+def test_a_cancelled_build_stops(tmp_path):
+    import threading
+
+    from reaperlive.progress import Cancelled
+
+    source = drum_loop(tmp_path / "song.wav", bpm=120.0, bars=8)
+    cancel = threading.Event()
+    cancel.set()
+    with pytest.raises(Cancelled):
+        build(options(source, tmp_path / "out", name="Nope"), cancel=cancel)
+
+
+def test_result_exposes_project_paths(tmp_path):
+    source = drum_loop(tmp_path / "song.wav", bpm=120.0, bars=6)
+    result = build(options(source, tmp_path / "out", name="Paths", target="both"))
+    assert result.reaper_project.suffix == ".rpp"
+    assert result.ableton_project.suffix == ".als"

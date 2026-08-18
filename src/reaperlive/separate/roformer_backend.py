@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import logging
 import shutil
+import threading
 from pathlib import Path
+from typing import Callable, Optional
 
 from reaperlive.config import SeparationOptions
 
@@ -36,13 +38,17 @@ class RoformerSeparator:
                       else DEFAULT_MODEL)
 
     def available(self) -> bool:
-        try:
-            import audio_separator  # noqa: F401
-        except ImportError:
-            return False
-        return True
+        import importlib.util
 
-    def separate(self, mix: Path, outdir: Path) -> dict[str, Path]:
+        return importlib.util.find_spec("audio_separator") is not None
+
+    def separate(self, mix: Path, outdir: Path,
+                 cancel: Optional[threading.Event] = None,
+                 on_percent: Optional[Callable[[int], None]] = None
+                 ) -> dict[str, Path]:
+        from reaperlive.progress import check
+
+        check(cancel)
         if not self.available():
             raise RuntimeError(
                 "audio-separator is not installed. Run:\n"
@@ -59,6 +65,7 @@ class RoformerSeparator:
         sep = AudioSeparator(output_dir=str(raw), output_format="wav")
         sep.load_model(model_filename=self.model)
         produced = sep.separate(str(mix))
+        check(cancel)
 
         stems: dict[str, Path] = {}
         for item in produced:

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
+from typing import Callable, Optional
 
 from reaperlive.config import SeparationOptions
 from reaperlive.separate.base import Separator, color_for, sort_stems
@@ -19,7 +21,10 @@ class NullSeparator:
     def available(self) -> bool:
         return True
 
-    def separate(self, mix: Path, outdir: Path) -> dict[str, Path]:
+    def separate(self, mix: Path, outdir: Path,
+                 cancel: Optional[threading.Event] = None,
+                 on_percent: Optional[Callable[[int], None]] = None
+                 ) -> dict[str, Path]:
         return {}
 
 
