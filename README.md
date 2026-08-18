@@ -60,8 +60,17 @@ such and get no markers rather than a wrong one.
 
 You need **Python 3.9+** and **ffmpeg**. Everything else comes from pip.
 
+The repository is private, so plain HTTPS cloning returns "repository not
+found" - that is GitHub declining to confirm a private repo exists, not a bad
+URL. Clone as an account with access to the `railgameaudio` org:
+
 ```bash
-git clone https://github.com/railgameaudio/reaperlive
+gh repo clone railgameaudio/reaperlive          # GitHub CLI, after gh auth login
+# or
+git clone git@github.com:railgameaudio/reaperlive.git    # SSH key on the account
+# or
+git clone https://github.com/railgameaudio/reaperlive.git  # asks for a token, not your password
+
 cd reaperlive
 
 python3 -m venv .venv
