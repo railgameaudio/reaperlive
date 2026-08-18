@@ -58,32 +58,34 @@ such and get no markers rather than a wrong one.
 
 ## Install
 
-On macOS and Linux, one command does the lot:
+One command, either platform:
 
 ```bash
 gh repo clone railgameaudio/reaperlive     # the repo is private - see below
 cd reaperlive
-./install.sh
+
+./install.sh          # macOS, Linux
+install.bat           # Windows - or double-click it
 ```
 
-`install.sh` finds a suitable Python, offers to install ffmpeg if it is
+The installer finds a suitable Python, offers to install ffmpeg if it is
 missing, builds `.venv`, brings pip up to date, installs the package, and then
 builds a small throwaway project end to end to prove the whole chain works
 before it says it is done. Re-running it is safe.
 
-| | |
-| --- | --- |
-| `./install.sh` | everything, stem separation included |
-| `./install.sh --lite` | analysis only, skips PyTorch (about 2 GB smaller) |
-| `./install.sh --dev` | add pytest and run the test suite |
-| `./install.sh --with-roformer` | add the RoFormer / MDX separation backend |
-| `./install.sh --yes` | never prompt |
-| `./install.sh --python /path/to/python3.12` | choose the interpreter |
+| macOS / Linux | Windows | |
+| --- | --- | --- |
+| `./install.sh` | `.\install.ps1` | everything, stem separation included |
+| `--lite` | `-Lite` | analysis only, skips PyTorch (about 2 GB smaller) |
+| `--dev` | `-Dev` | add pytest and run the test suite |
+| `--with-roformer` | `-WithRoformer` | add the RoFormer / MDX separation backend |
+| `--yes` | `-Yes` | never prompt |
+| `--python <path>` | `-Python <path>` | choose the interpreter |
 
 Then:
 
 ```bash
-source .venv/bin/activate
+source .venv/bin/activate            # Windows: .venv\Scripts\Activate.ps1
 reaperlive-gui                       # or: reaperlive ~/Music/song.mp3 -o ~/band
 ```
 
@@ -105,13 +107,33 @@ Separation is much faster on a GPU. `--device` is autodetected and can be forced
 to `cpu`, `cuda` or `mps`. On a Linux box with no NVIDIA card the script fetches
 the CPU build of PyTorch, which is a couple of GB smaller than the CUDA one.
 
-### Windows
+### Windows notes
 
-There is no `.ps1` yet, so do it by hand — the same steps the script runs:
+`install.bat` is the easy route: double-click it, or run it from a terminal. It
+relaxes the execution policy for that one run so a locked-down machine does not
+block setup, and prefers PowerShell 7 when you have it. To call the script
+directly:
+
+```powershell
+.\install.ps1
+# if the execution policy blocks it:
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+Two things that catch people out:
+
+- **ffmpeg from winget lands on the machine PATH, not in the terminal you are
+  already in.** The script tries to refresh it; if `ffmpeg` still is not found,
+  open a new terminal.
+- **Tkinter is optional in the Python installer.** If `reaperlive-gui` will not
+  start, re-run the Python installer and tick *tcl/tk and IDLE*. The command
+  line works either way.
+
+Doing it by hand is the same few steps:
 
 ```powershell
 py -3.12 -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip setuptools wheel
 pip install -e ".[demucs]"
 ```
