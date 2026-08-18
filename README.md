@@ -58,28 +58,42 @@ such and get no markers rather than a wrong one.
 
 ## Install
 
-You need **Python 3.9+** and **ffmpeg**. Everything else comes from pip.
-
-The repository is private, so plain HTTPS cloning returns "repository not
-found" - that is GitHub declining to confirm a private repo exists, not a bad
-URL. Clone as an account with access to the `railgameaudio` org:
+On macOS and Linux, one command does the lot:
 
 ```bash
-gh repo clone railgameaudio/reaperlive          # GitHub CLI, after gh auth login
-# or
-git clone git@github.com:railgameaudio/reaperlive.git    # SSH key on the account
-# or
-git clone https://github.com/railgameaudio/reaperlive.git  # asks for a token, not your password
-
+gh repo clone railgameaudio/reaperlive     # the repo is private - see below
 cd reaperlive
-
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-
-pip install -e ".[demucs]"         # with stem separation
+./install.sh
 ```
 
-ffmpeg, if you do not already have it:
+`install.sh` finds a suitable Python, offers to install ffmpeg if it is
+missing, builds `.venv`, brings pip up to date, installs the package, and then
+builds a small throwaway project end to end to prove the whole chain works
+before it says it is done. Re-running it is safe.
+
+| | |
+| --- | --- |
+| `./install.sh` | everything, stem separation included |
+| `./install.sh --lite` | analysis only, skips PyTorch (about 2 GB smaller) |
+| `./install.sh --dev` | add pytest and run the test suite |
+| `./install.sh --with-roformer` | add the RoFormer / MDX separation backend |
+| `./install.sh --yes` | never prompt |
+| `./install.sh --python /path/to/python3.12` | choose the interpreter |
+
+Then:
+
+```bash
+source .venv/bin/activate
+reaperlive-gui                       # or: reaperlive ~/Music/song.mp3 -o ~/band
+```
+
+### What it needs
+
+**Python 3.10 or newer.** Verified on 3.11 and 3.13. If your `python3` is older,
+the script says so and tells you what to install — on macOS that is
+`brew install python@3.12`.
+
+**ffmpeg**, which the script will install for you, or:
 
 | | |
 | --- | --- |
@@ -87,18 +101,38 @@ ffmpeg, if you do not already have it:
 | Windows | `winget install Gyan.FFmpeg` |
 | Debian/Ubuntu | `sudo apt install ffmpeg` |
 
-That first install pulls in PyTorch, so it downloads a couple of GB and takes a
-few minutes. If you only want the tempo mapping and want to skip separation
-entirely, `pip install -e .` is much smaller — then run with `--separator none`.
+Separation is much faster on a GPU. `--device` is autodetected and can be forced
+to `cpu`, `cuda` or `mps`. On a Linux box with no NVIDIA card the script fetches
+the CPU build of PyTorch, which is a couple of GB smaller than the CUDA one.
 
-Then check it works on something you already have:
+### Windows
 
-```bash
-reaperlive ~/Music/some-song.mp3 -o ~/band
+There is no `.ps1` yet, so do it by hand — the same steps the script runs:
+
+```powershell
+py -3.12 -m venv .venv
+.venv\Scripts\activate
+python -m pip install --upgrade pip setuptools wheel
+pip install -e ".[demucs]"
 ```
 
-Separation is much faster on a GPU. `--device` is autodetected, and can be
-forced to `cpu`, `cuda` or `mps`.
+### Cloning: "repository not found"
+
+The repository is private, so an unauthenticated clone gets a 404 — that is
+GitHub declining to confirm a private repo exists, not a bad URL. Clone as an
+account with access to the `railgameaudio` org:
+
+```bash
+gh repo clone railgameaudio/reaperlive                      # after gh auth login
+git clone git@github.com:railgameaudio/reaperlive.git       # SSH key on the account
+git clone https://github.com/railgameaudio/reaperlive.git   # asks for a token, not a password
+```
+
+### pip: "File setup.py or setup.cfg not found"
+
+Your pip is older than 21.3 and cannot do an editable install from
+`pyproject.toml`. `./install.sh` upgrades it for you; by hand it is
+`python -m pip install --upgrade pip`.
 
 ### The window
 

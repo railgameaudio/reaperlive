@@ -7,12 +7,13 @@ name = "reaperlive"
 version = "0.1.0"
 description = "Turn a YouTube link or audio file into a tempo-mapped REAPER (or Ableton) project with separated stems, a metronome track and section markers."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
-    "numpy>=1.23",
+    "numpy>=1.23,<3",
     "scipy>=1.9",
-    "librosa>=0.10",
+    # Tested against 0.11 and 1.0; the major bump kept the API we use.
+    "librosa>=0.10,<2",
     "soundfile>=0.12",
     "yt-dlp>=2024.1.1",
 ]
